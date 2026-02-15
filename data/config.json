@@ -15,7 +15,7 @@
       ]
     },
     "app3": {
-      "description": "Vojta Linux Canvas AI App",
+      "description": "Linux Canvas AI App",
       "commands": [
         "~/Documents/Comfy/start_comfy.sh",
         "~/Documents/APPS/ai_canvas/renderer"
