@@ -9,3 +9,4 @@ build/
 # Certificates (sensitive)
 data/*.pem
 data/*.cert
+www/*.crt
