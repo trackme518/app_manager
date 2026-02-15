@@ -1,0 +1,25 @@
+{
+  "apps": {
+    "app1": {
+      "description": "Windows AI Canvas App - Production",
+      "commands": [
+        "~/Documents/ComfyUI_windows_portable_nvidia/ComfyUI_windows_portable/run_nvidia_gpu_fast_fp16_accumulation.bat",
+        "~/Documents/APPS/ai_canvas/renderer.exe"
+      ]
+    },
+    "app2": {
+      "description": "Another App - Win Debug",
+      "commands": [
+        "~/Documents/APPS/ai_canvas/renderer.exe",
+        "~/Documents/APPS/test.bat"
+      ]
+    },
+    "app3": {
+      "description": "Vojta Linux Canvas AI App",
+      "commands": [
+        "~/Documents/Comfy/start_comfy.sh",
+        "~/Documents/APPS/ai_canvas/renderer"
+      ]
+    }
+  }
+}

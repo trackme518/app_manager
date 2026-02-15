@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>App Manager</title>
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <h1>App Manager</h1>
+    <div id="auth">
+        <label for="tokenInput">API token</label>
+        <input id="tokenInput" type="password" autocomplete="current-password" />
+        <button id="loginBtn">Login</button>
+        <button id="logoutBtn">Log out</button>
+        <div id="error" role="alert"></div>
+    </div>
+    <div id="status"></div>
+    <div id="apps">Please log in to load apps.</div>
+    <div id="certificate"></div>
+    <script>
+    const storageKey = 'orch_token_hash';
+    let tokenHash = localStorage.getItem(storageKey);
+    let statusTimer = null;
+    let appsCache = {};
+    let errorTimer = null;
+    let pollingActive = false;
+
+    const appsDiv = document.getElementById('apps');
+    const statusDiv = document.getElementById('status');
+    const errorDiv = document.getElementById('error');
+    const certificateDiv = document.getElementById('certificate');
+    const tokenInput = document.getElementById('tokenInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    function showError(message) {
+        clearError();
+        errorDiv.textContent = message || '';
+        if (message) {
+            errorTimer = setTimeout(clearError, 5000);
+        }
+    }
+
+    function clearError() {
+        if (errorTimer) {
+            clearTimeout(errorTimer);
+            errorTimer = null;
+        }
+        errorDiv.textContent = '';
+    }
+
+    async function hashToken(token) {
+        const data = new TextEncoder().encode(token);
+        const digest = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(digest))
+            .map(byte => byte.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function fetchWithRetry(path, opts, { baseDelayMs = 1000, maxRetries = 6 } = {}) {
+        let attempt = 0;
+        while (true) {
+            try {
+                return await fetch(path, opts);
+            } catch (error) {
+                if (attempt >= maxRetries) {
+                    throw error;
+                }
+                const delay = baseDelayMs * (2 ** attempt);
+                console.log("Network error, trying to reconnect in "+delay);
+                await sleep(delay);
+                attempt += 1;
+            }
+        }
+    }
+
+    function setLoggedInState(isLoggedIn) {
+        tokenInput.style.display = isLoggedIn ? 'none' : 'inline-block';
+        loginBtn.style.display = isLoggedIn ? 'none' : 'inline-block';
+        logoutBtn.style.display = isLoggedIn ? 'inline-block' : 'none';
+    }
+
+    function clearStatus() {
+        appsDiv.textContent = 'Please log in to load apps.';
+        statusDiv.textContent = '';
+        certificateDiv.textContent = '';
+        appsCache = {};
+    }
+
+    async function apiWithToken(token, path, opts = {}) {
+        if (!token) {
+            throw new Error('Missing token');
+        }
+        opts.headers = opts.headers || {};
+        opts.headers['Authorization'] = 'Bearer ' + token;
+        const response = await fetchWithRetry(path, opts);
+        if (response.status === 401) {
+            throw new Error('invalid token');
+        }
+        if (!response.ok) {
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (error) {
+                payload = null;
+            }
+            const message = payload && payload.error
+                ? payload.error
+                : `Request failed (${response.status})`;
+            throw new Error(message);
+        }
+        return response.json();
+    }
+
+    async function api(path, opts = {}) {
+        return apiWithToken(tokenHash, path, opts);
+    }
+
+    async function loadApps() {
+        appsDiv.textContent = 'Loading apps...';
+        try {
+            const apps = await api('/api/apps');
+            appsCache = apps || {};
+            appsDiv.innerHTML = '';
+            Object.entries(appsCache).forEach(([name, info]) => {
+                const btn = document.createElement('button');
+                btn.textContent = 'Start';
+                btn.onclick = () => api(`/api/start/${name}`, { method: 'POST' })
+                    .then(updateStatus)
+                    .catch(error => showError(error.message || 'Failed to start app.'));
+                appsDiv.appendChild(btn);
+                appsDiv.appendChild(document.createTextNode(' ' + info.description));
+                appsDiv.appendChild(document.createElement('br'));
+            });
+            const stopBtn = document.createElement('button');
+            stopBtn.textContent = 'Stop';
+            stopBtn.onclick = () => api('/api/stop', { method: 'POST' })
+                .then(updateStatus)
+                .catch(error => showError(error.message || 'Failed to stop app.'));
+            appsDiv.appendChild(stopBtn);
+            renderCertificateSection();
+        } catch (error) {
+            clearStatus();
+        }
+    }
+
+    function renderCertificateSection() {
+        certificateDiv.innerHTML = '';
+        const title = document.createElement('h2');
+        title.textContent = 'Certificate';
+        const generateBtn = document.createElement('button');
+        generateBtn.textContent = 'Generate';
+        generateBtn.onclick = () => api('/api/certificate', { method: 'POST' })
+            .then(() => {
+                showError('Certificate generated. Server restarting...');
+            })
+            .catch(error => showError(error.message || 'Failed to generate certificate.'));
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download';
+        downloadBtn.onclick = () => {
+            window.location.href = '/static/ca-cert.crt';
+        };
+        certificateDiv.appendChild(title);
+        certificateDiv.appendChild(generateBtn);
+        certificateDiv.appendChild(document.createTextNode(' '));
+        certificateDiv.appendChild(downloadBtn);
+    }
+
+    function formatUptime(seconds) {
+        if (seconds === null || seconds === undefined) {
+            return '-';
+        }
+        const totalSeconds = Math.max(0, Math.floor(seconds));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+        const parts = [
+            String(hours).padStart(2, '0'),
+            String(minutes).padStart(2, '0'),
+            String(secs).padStart(2, '0')
+        ];
+        return parts.join(':');
+    }
+
+    async function updateStatus() {
+        try {
+            const status = await api('/api/status');
+            const processes = Array.isArray(status.processes)
+                ? status.processes.join(', ')
+                : '-';
+            const currentName = status.current_running_app;
+            const currentLabel = currentName
+                ? (appsCache[currentName]?.description || currentName)
+                : 'None';
+            statusDiv.textContent =
+                'Current: ' + currentLabel + '\n' +
+                'Uptime: ' + formatUptime(status.uptime) + '\n' +
+                'Processes: ' + (processes || '-');
+        } catch (error) {
+            statusDiv.textContent = '';
+            stopStatusPolling();
+            showError(error.message || 'Network error.');
+        }
+    }
+
+    function scheduleNextStatusPoll(delayMs = 2000) {
+        if (!pollingActive) {
+            return;
+        }
+        if (statusTimer) {
+            clearTimeout(statusTimer);
+        }
+        statusTimer = setTimeout(async () => {
+            await updateStatus();
+            scheduleNextStatusPoll(delayMs);
+        }, delayMs);
+    }
+
+    function startStatusPolling() {
+        stopStatusPolling();
+        pollingActive = true;
+        scheduleNextStatusPoll(0);
+    }
+
+    function stopStatusPolling() {
+        pollingActive = false;
+        if (statusTimer) {
+            clearTimeout(statusTimer);
+            statusTimer = null;
+        }
+    }
+
+    async function handleLogin() {
+        const rawToken = tokenInput.value.trim();
+        if (!rawToken) {
+            showError('Please enter a token.');
+            return;
+        }
+        const hashed = await hashToken(rawToken);
+        try {
+            await apiWithToken(hashed, '/api/status');
+        } catch (error) {
+            showError('invalid token');
+            return;
+        }
+        tokenHash = hashed;
+        localStorage.setItem(storageKey, hashed);
+        setLoggedInState(true);
+        clearError();
+        await loadApps();
+        startStatusPolling();
+    }
+
+    function handleLogout() {
+        tokenHash = null;
+        localStorage.removeItem(storageKey);
+        setLoggedInState(false);
+        stopStatusPolling();
+        clearStatus();
+        clearError();
+        tokenInput.value = '';
+    }
+
+    loginBtn.addEventListener('click', handleLogin);
+    logoutBtn.addEventListener('click', handleLogout);
+
+    if (tokenHash) {
+        setLoggedInState(true);
+        loadApps();
+        startStatusPolling();
+    } else {
+        setLoggedInState(false);
+        clearStatus();
+    }
+    </script>
+</body>
+</html>
