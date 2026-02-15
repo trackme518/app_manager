@@ -1,4 +1,8 @@
 # App Manager
+<p align="left">
+  <img src="./assets/app_manager_screenshot.png" alt="HTTPS warning" width="50%" />
+</p>
+
 Web based manager to start and stop apps and commands. The App Manager starts server and you can control it from website from any device, that can reach the main PC, where the App Manager is running. On Windows it uses Windows Job Object and on Linux PID processes tracking to eventually stop all the processes, when requsted. 
 
 ## Install
