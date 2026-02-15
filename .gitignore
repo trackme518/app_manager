@@ -1,4 +1,11 @@
-venv
-.venv
-dist
-build
+# Virtual environments
+venv/
+.venv/
+
+# Build artifacts
+dist/
+build/
+
+# Certificates (sensitive)
+data/*.pem
+data/*.cert

@@ -464,7 +464,7 @@ WWW_DIR = resource_path("www")
 
 CERT_FILE = os.path.join(data_dir, 'cert.pem')
 KEY_FILE = os.path.join(data_dir, 'key.pem')
-CA_CERT_FILE = os.path.join(data_dir, 'ca_cert.pem')
+CA_CERT_FILE = os.path.join(data_dir, 'ca_cert.crt')
 CA_KEY_FILE = os.path.join(data_dir, 'ca_key.pem')
 CA_CERT_PUBLIC_FILE = os.path.join(WWW_DIR, 'ca-cert.crt')
 DEFAULT_PORT = 9999
