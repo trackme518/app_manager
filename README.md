@@ -10,7 +10,9 @@ Edit the `data/config.ini`, change your secret `token` (password) that is used t
 Edit the `data/config.json` to add more apps. Under "app" you can list multiple commands that you want to execute. These can be .exe / .sh / .bat or other exectutables or other commands you might need. If you include `~` in the path, it will resolve it to absolute path at you user directory. You can change `config.json` during runtime. 
 
 ## Install CA certificate to avoid security warning
-![HTTPS warning](./assets/https_warning.png)
+<p align="left">
+  <img src="./assets/https_warning.png" alt="HTTPS warning" width="50%" />
+</p>
 
 Navigate to `https://127.0.0.1:9999` (replace with your port number). Click `download` and download the provided CA certificate to your remote device to prevent security warning about unsecure https / SSL connection. 
 
