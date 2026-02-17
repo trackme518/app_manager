@@ -235,7 +235,12 @@ class WindowsJobObject:
         if not self.handle:
             return []
         count = 32
+        max_count = 2048
         while True:
+            if count > max_count:
+                print("ERROR: buffer size exceeded in list_pids(self)")
+                return []
+
             buffer_size = ctypes.sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST) + (
 
                 ctypes.sizeof(ctypes.c_size_t) * (count - 1)
@@ -254,7 +259,15 @@ class WindowsJobObject:
             )
             if result:
                 number = info_ptr.contents.NumberOfProcessIdsInList
-                return [info_ptr.contents.ProcessIdList[i] for i in range(number)]
+                number = min(number, count)
+                base_addr = (
+                    ctypes.addressof(info_ptr.contents)
+                    + ctypes.sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST)
+                    - ctypes.sizeof(ctypes.c_size_t)
+                )
+                pid_array = (ctypes.c_size_t * count).from_address(base_addr)
+                return [pid_array[i] for i in range(number)]
+
             error = ctypes.get_last_error()
             if error == self.ERROR_MORE_DATA:
                 count *= 2
